@@ -21,6 +21,27 @@ model User {
     email           String              @unique
     password        String              
     role            Role                @default(user)
+    chatRooms       ChatRoom[]
+    chats           Chat[]
+    createdAt       DateTime            @default(now())
+    updatedAt       DateTime            @updatedAt @default(now())
+}
+
+model Chat {
+    id              Int                 @id @default(autoincrement())
+    author          User                @relation(fields: [authorId], references: [id])   
+    authorId        Int               
+    chatRoom        ChatRoom            @relation(fields: [chatRoomId], references: [id])
+    chatRoomId      Int
+    message         String
+    createdAt       DateTime            @default(now())
+    updatedAt       DateTime            @updatedAt @default(now())
+}
+
+model ChatRoom {
+    id              Int                 @id @default(autoincrement())
+    users           User[]
+    chats           Chat[]
     createdAt       DateTime            @default(now())
     updatedAt       DateTime            @updatedAt @default(now())
 }
