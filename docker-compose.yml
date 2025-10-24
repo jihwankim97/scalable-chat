@@ -29,3 +29,88 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # NestJS-1
+  app-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      ENV: dev
+      DB_TYPE: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_PASSWORD: postgres
+      DB_DATABASE: scalable-chat
+      DB_URL: postgresql://root:postgres@postgres:5432/scalable-chat
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      HASH_ROUNDS: 10
+      ACCESS_TOKEN_SECRET: your-access-token-secret-here
+      REFRESH_TOKEN_SECRET: your-refresh-token-secret-here
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: sh -c "pnpm prisma migrate deploy && node dist/main"
+
+  # NestJS-2
+  app-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '3001:3000'
+    environment:
+      ENV: dev
+      DB_TYPE: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_PASSWORD: postgres
+      DB_DATABASE: scalable-chat
+      DB_URL: postgresql://root:postgres@postgres:5432/scalable-chat
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      HASH_ROUNDS: 10
+      ACCESS_TOKEN_SECRET: your-access-token-secret-here
+      REFRESH_TOKEN_SECRET: your-refresh-token-secret-here
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      app-1:
+        condition: service_started
+    command: node dist/main
+
+  # NestJS-3
+  app-3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '3002:3000'
+    environment:
+      ENV: dev
+      DB_TYPE: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_PASSWORD: postgres
+      DB_DATABASE: scalable-chat
+      DB_URL: postgresql://root:postgres@postgres:5432/scalable-chat
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      HASH_ROUNDS: 10
+      ACCESS_TOKEN_SECRET: your-access-token-secret-here
+      REFRESH_TOKEN_SECRET: your-refresh-token-secret-here
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      app-1:
+        condition: service_started
+    command: node dist/main
