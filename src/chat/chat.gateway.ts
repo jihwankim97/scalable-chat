@@ -36,6 +36,9 @@ export class ChatGateway
     const pubClient = this.redisService.getPubClient();
     const subClient = this.redisService.getSubClient();
 
+    if (!pubClient || !subClient) {
+      return;
+    }
     server.adapter(createAdapter(pubClient, subClient));
 
     this.chatService.setServer(server);
@@ -69,7 +72,7 @@ export class ChatGateway
         client.disconnect();
       }
     } catch (e) {
-      this.logger.error(`Connection error: ${e.message}`, e.stack);
+      this.logger.error(`연결 오류: ${e.message}`, e.stack);
       client.disconnect();
     }
   }
