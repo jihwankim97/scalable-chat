@@ -7,7 +7,7 @@ services:
     ports:
       - '5432:5432'
     environment:
-      POSTGRES_USER: root
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: scalable-chat
     healthcheck:
@@ -44,7 +44,7 @@ services:
       DB_PORT: 5432
       DB_PASSWORD: postgres
       DB_DATABASE: scalable-chat
-      DB_URL: postgresql://root:postgres@postgres:5432/scalable-chat
+      DB_URL: postgresql://postgres:postgres@postgres:5432/scalable-chat
       REDIS_HOST: redis
       REDIS_PORT: 6379
       HASH_ROUNDS: 10
@@ -55,7 +55,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "pnpm prisma migrate deploy && node dist/main"
+    command: sh -c "npx prisma migrate deploy && node dist/main"
 
   # NestJS-2
   app-2:
@@ -71,7 +71,7 @@ services:
       DB_PORT: 5432
       DB_PASSWORD: postgres
       DB_DATABASE: scalable-chat
-      DB_URL: postgresql://root:postgres@postgres:5432/scalable-chat
+      DB_URL: postgresql://postgres:postgres@postgres:5432/scalable-chat
       REDIS_HOST: redis
       REDIS_PORT: 6379
       HASH_ROUNDS: 10
@@ -100,7 +100,7 @@ services:
       DB_PORT: 5432
       DB_PASSWORD: postgres
       DB_DATABASE: scalable-chat
-      DB_URL: postgresql://root:postgres@postgres:5432/scalable-chat
+      DB_URL: postgresql://postgres:postgres@postgres:5432/scalable-chat
       REDIS_HOST: redis
       REDIS_PORT: 6379
       HASH_ROUNDS: 10

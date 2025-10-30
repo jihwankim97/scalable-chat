@@ -1,42 +1,72 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
+import { CommonService } from 'src/common/common.service';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(RedisService.name);
   private pubClient: Redis;
   private subClient: Redis;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly commonService: CommonService,
+  ) {}
 
-  onModuleInit() {
-    const redisHost = this.configService.get('REDIS_HOST');
-    const redisPort = this.configService.get('REDIS_PORT');
+  async onModuleInit() {
+    const host = this.configService.get<string>('REDIS_HOST');
+    const port = Number(this.configService.get('REDIS_PORT'));
+    const attempts =
+      Number(this.configService.get('REDIS_INIT_MAX_RETRIES')) || 5;
+    const baseDelayMs =
+      Number(this.configService.get('REDIS_INIT_BASE_DELAY_MS')) || 300;
 
-    this.pubClient = new Redis({
-      host: redisHost,
-      port: redisPort,
-      retryStrategy: (times) => {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
+    await this.commonService.retry(
+      async () => {
+        const pub = new Redis({
+          host,
+          port,
+          connectTimeout: 10000,
+          commandTimeout: 5000,
+          lazyConnect: true,
+          retryStrategy: (times) => Math.min(times * 200, 2000),
+        });
+        const sub = pub.duplicate();
+
+        pub.on('error', (e) =>
+          this.logger.error(`Redis PUB 오류: ${e.message}`),
+        );
+        sub.on('error', (e) =>
+          this.logger.error(`Redis SUB 오류: ${e.message}`),
+        );
+
+        await pub.connect();
+        await sub.connect();
+
+        this.pubClient = pub;
+        this.subClient = sub;
+
+        this.logger.log(`Redis 연결 성공: ${host}:${port}`);
       },
-    });
-
-    this.subClient = this.pubClient.duplicate();
-
-    console.log(` Redis connected: ${redisHost}:${redisPort}`);
+      { attempts, baseDelayMs },
+    );
   }
 
   onModuleDestroy() {
-    this.pubClient.disconnect();
-    this.subClient.disconnect();
+    this.pubClient?.disconnect();
+    this.subClient?.disconnect();
   }
 
-  getPubClient(): Redis {
+  getPubClient() {
     return this.pubClient;
   }
-
-  getSubClient(): Redis {
+  getSubClient() {
     return this.subClient;
   }
 }
