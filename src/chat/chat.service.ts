@@ -53,12 +53,12 @@ export class ChatService {
 
   async createMessage(
     { sub: userId }: JwtPayload,
-    { message, room, peerUserId }: CreateChatDto,
+    { message, roomId, peerUserId }: CreateChatDto,
   ) {
-    if (room && peerUserId) {
+    if (roomId && peerUserId) {
       throw new WsException('room과 peerUserId를 동시에 사용할 수 없습니다.');
     }
-    if (!room && !peerUserId) {
+    if (!roomId && !peerUserId) {
       throw new WsException('room 또는 peerUserId 중 하나는 필수입니다.');
     }
 
@@ -75,8 +75,8 @@ export class ChatService {
           );
           chatRoom = result.room;
           isNewRoom = result.isNew;
-        } else if (room) {
-          chatRoom = await this.getOrCreateChatRoom(userId, room, tx);
+        } else if (roomId) {
+          chatRoom = await this.getOrCreateChatRoom(userId, roomId, tx);
           isNewRoom = false;
         }
 
@@ -191,6 +191,42 @@ export class ChatService {
     return !!room;
   }
 
+  async processJoinRoom(
+    userId: number,
+    roomId: number,
+    client: Socket,
+  ): Promise<void> {
+    try {
+      const chatRoom = await this.prisma.chatRoom.findUnique({
+        where: { id: roomId },
+        include: { users: true },
+      });
+
+      if (!chatRoom) {
+        throw new WsException('존재하지 않는 채팅방입니다.');
+      }
+
+      const isMember = chatRoom.users.some((u) => u.id === userId);
+
+      if (!isMember) {
+        await this.prisma.chatRoom.update({
+          where: { id: roomId },
+          data: {
+            users: { connect: { id: userId } },
+          },
+        });
+      }
+
+      client.join(`chat/${roomId}`);
+      client.emit('roomJoined', { roomId, success: true });
+      this.logger.log(`사용자 ${userId}가 방 ${roomId}에 가입했습니다.`);
+    } catch (error) {
+      this.logger.error(`방 가입 실패: ${error.message}`);
+      client.emit('error', { message: error.message });
+      throw error;
+    }
+  }
+
   async leaveRoom(userId: number, roomId: number) {
     return await this.prisma.chatRoom.update({
       where: { id: roomId },
@@ -209,7 +245,31 @@ export class ChatService {
         throw new WsException('방에 접근할 권한이 없습니다.');
       }
 
-      await this.leaveRoom(userId, roomId);
+      const result = await this.prisma.$transaction(async (tx) => {
+        const updatedRoom = await tx.chatRoom.update({
+          where: { id: roomId },
+          data: {
+            users: {
+              disconnect: { id: userId },
+            },
+          },
+          include: { users: true },
+        });
+
+        if (updatedRoom.users.length === 0) {
+          await tx.chatRoom.delete({
+            where: { id: roomId },
+          });
+          return { roomDeleted: true };
+        }
+
+        return { roomDeleted: false };
+      });
+
+      if (result.roomDeleted) {
+        this.logger.log(`방 ${roomId}에 사용자가 없어 방이 삭제되었습니다.`);
+      }
+
       client.leave(`chat/${roomId}`);
       client.emit('roomLeft', { roomId, success: true });
 

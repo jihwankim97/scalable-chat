@@ -13,11 +13,21 @@ import { Server, Socket } from 'socket.io';
 import { SocketJsonPipe } from '../common/pipe/socket-json.pipe';
 import { AuthService } from 'src/auth/auth.service';
 import { RedisService } from 'src/redis/redis.service';
-import { Logger } from '@nestjs/common';
+import { Logger, UsePipes, ValidationPipe } from '@nestjs/common';
+import { WsException } from '@nestjs/websockets';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { createAdapter } from '@socket.io/redis-adapter';
 
 @WebSocketGateway()
+@UsePipes(
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: false,
+    transformOptions: {
+      enableImplicitConversion: true,
+    },
+  }),
+)
 export class ChatGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
@@ -33,6 +43,8 @@ export class ChatGateway
   ) {}
 
   afterInit(server: Server) {
+    this.chatService.setServer(server);
+
     const pubClient = this.redisService.getPubClient();
     const subClient = this.redisService.getSubClient();
 
@@ -40,8 +52,6 @@ export class ChatGateway
       return;
     }
     server.adapter(createAdapter(pubClient, subClient));
-
-    this.chatService.setServer(server);
 
     this.logger.log(' 서버 전역 설정 및 초기화 완료');
   }
@@ -79,7 +89,7 @@ export class ChatGateway
 
   @SubscribeMessage('sendMessage')
   async handleMessage(
-    @MessageBody(SocketJsonPipe) body: CreateChatDto,
+    @MessageBody(SocketJsonPipe, ValidationPipe) body: CreateChatDto,
     @ConnectedSocket() client: Socket,
   ) {
     await this.chatService.createMessage(client.data.user, body);
@@ -87,15 +97,20 @@ export class ChatGateway
 
   @SubscribeMessage('joinRoom')
   async handleJoinRoom(
-    @MessageBody() data: { roomId: number },
+    @MessageBody(ValidationPipe) data: { roomId: number },
     @ConnectedSocket() client: Socket,
   ) {
-    client.join(`chat/${data.roomId}`);
+    const user = client.data.user;
+    if (!user) {
+      throw new WsException('인증되지 않은 사용자입니다.');
+    }
+
+    await this.chatService.processJoinRoom(user.sub, data.roomId, client);
   }
 
   @SubscribeMessage('leaveRoom')
   async handleLeaveRoom(
-    @MessageBody() data: { roomId: number },
+    @MessageBody(ValidationPipe) data: { roomId: number },
     @ConnectedSocket() client: Socket,
   ) {
     const user = client.data.user;

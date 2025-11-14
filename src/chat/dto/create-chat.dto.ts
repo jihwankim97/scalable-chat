@@ -7,7 +7,7 @@ export class CreateChatDto {
 
   @IsNumber()
   @IsOptional()
-  room?: number;
+  roomId?: number;
 
   @IsNumber()
   @IsOptional()

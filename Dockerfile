@@ -1,38 +1,27 @@
-FROM node:20-alpine AS builder
 
+FROM node:20-alpine AS builder
 WORKDIR /app
 
-# pnpm 설치
-RUN npm install -g pnpm
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
+COPY prisma ./prisma
+RUN npx prisma generate
 
 COPY . .
-
-# Prisma 생성 및 빌드
-RUN npx prisma generate
 RUN pnpm build
+RUN pnpm prune --prod
 
-# Production stage
 FROM node:20-alpine
-
 WORKDIR /app
 
-RUN npm install -g pnpm
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 
-# 의존성만 복사
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod
-
-# 빌드된 파일과 Prisma 스키마 복사
+COPY --from=builder /app/package.json /app/pnpm-lock.yaml ./
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 
-# Prisma 클라이언트 생성
-RUN npx prisma generate
-
 EXPOSE 3000
-
-CMD ["node", "dist/main"]
-
+CMD ["node", "dist/main.js"]
