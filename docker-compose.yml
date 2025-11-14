@@ -1,116 +1,14 @@
 services:
-  postgres:
-    image: postgres:15
-    restart: always
-    volumes:
-      - ./postgres-data:/var/lib/postgresql/data
-    ports:
-      - '5432:5432'
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: scalable-chat
-    healthcheck:
-      test: ['CMD', 'pg_isready', '-U', 'postgres']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7-alpine
     restart: always
     volumes:
       - ./redis-data:/data
     ports:
-      - '6379:6379'
+      - '${REDIS_PORT:-6379}:6379'
     command: redis-server --appendonly yes
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # NestJS-1
-  app-1:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - '3000:3000'
-    environment:
-      ENV: dev
-      DB_TYPE: postgres
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_PASSWORD: postgres
-      DB_DATABASE: scalable-chat
-      DB_URL: postgresql://postgres:postgres@postgres:5432/scalable-chat
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      HASH_ROUNDS: 10
-      ACCESS_TOKEN_SECRET: your-access-token-secret-here
-      REFRESH_TOKEN_SECRET: your-refresh-token-secret-here
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: sh -c "npx prisma migrate deploy && node dist/main"
-
-  # NestJS-2
-  app-2:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - '3001:3000'
-    environment:
-      ENV: dev
-      DB_TYPE: postgres
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_PASSWORD: postgres
-      DB_DATABASE: scalable-chat
-      DB_URL: postgresql://postgres:postgres@postgres:5432/scalable-chat
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      HASH_ROUNDS: 10
-      ACCESS_TOKEN_SECRET: your-access-token-secret-here
-      REFRESH_TOKEN_SECRET: your-refresh-token-secret-here
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      app-1:
-        condition: service_started
-    command: node dist/main
-
-  # NestJS-3
-  app-3:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - '3002:3000'
-    environment:
-      ENV: dev
-      DB_TYPE: postgres
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_PASSWORD: postgres
-      DB_DATABASE: scalable-chat
-      DB_URL: postgresql://postgres:postgres@postgres:5432/scalable-chat
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      HASH_ROUNDS: 10
-      ACCESS_TOKEN_SECRET: your-access-token-secret-here
-      REFRESH_TOKEN_SECRET: your-refresh-token-secret-here
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      app-1:
-        condition: service_started
-    command: node dist/main
